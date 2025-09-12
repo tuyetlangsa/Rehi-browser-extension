@@ -28,7 +28,17 @@
       "https://*/*"
     ],
     "permissions": [
-      "tabs"
-    ]
+      "tabs",
+      "activeTab",
+      "commands"
+    ],
+    "commands": {
+      "get-raw-html": {
+        "suggested_key": {
+          "default": "Alt+R"
+        },
+        "description": "Get raw HTML of current page"
+      }
+    }
   }
 }
