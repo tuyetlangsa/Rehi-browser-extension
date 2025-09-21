@@ -1,9 +1,5 @@
 import type { PlasmoCSConfig } from "plasmo"
 
-export const config: PlasmoCSConfig = {
-  matches: ["<all_urls>"],
-  all_frames: true
-}
 
 chrome.runtime.onMessage.addListener((request, sender) => {
   switch (request.type) {
@@ -35,7 +31,7 @@ const collectPageContent = async (): Promise<string> => {
 // })
 
 chrome.runtime.onMessage.addListener((message) => {
-  if (message.type === "saveArticleSuccess") {
+  if (message.type === "getOrAddDocumentResult") {
     const result = message.result
     console.log("Received getOrAddDocument result in content script:", result)
 
@@ -65,7 +61,6 @@ chrome.runtime.onMessage.addListener((message) => {
           boxShadow: "0 2px 5px rgba(0,0,0,0.3)",
         })
 
-        // Nút close
         const closeBtn = document.createElement("span")
         closeBtn.innerText = "✖"
         closeBtn.style.marginLeft = "10px"
