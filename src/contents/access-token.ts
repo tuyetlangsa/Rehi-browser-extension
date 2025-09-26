@@ -5,11 +5,9 @@ export const config: PlasmoCSConfig = {
 }
 
 window.addEventListener("message", (event) => {
-  console.log("tao có chạy nha1")
   if (event.source !== window) return
 
   if (event.data?.type === "FROM_PAGE") {
-    console.log("tao có chạy nha2")
     const jwt = event.data.jwt
     console.log(jwt)
     console.log(chrome.storage)
