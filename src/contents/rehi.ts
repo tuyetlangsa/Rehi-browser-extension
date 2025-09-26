@@ -1,20 +1,23 @@
 import type { PlasmoCSConfig } from "plasmo"
 
-
 chrome.runtime.onMessage.addListener((request, sender) => {
   switch (request.type) {
-    case 'get-raw-html':
-      collectPageContent().then(rawHtml => {
-        chrome.runtime.sendMessage({type: "rawHtml", rawHtml: rawHtml, url: window.location.href});
-      });
-      return true;
+    case "get-raw-html":
+      collectPageContent().then((rawHtml) => {
+        chrome.runtime.sendMessage({
+          type: "rawHtml",
+          rawHtml: rawHtml,
+          url: window.location.href
+        })
+      })
+      return true
   }
-});
+})
 
 const collectPageContent = async (): Promise<string> => {
   const mainContent = document.documentElement.outerHTML
-  console.log(mainContent);
-  return mainContent;
+  console.log(mainContent)
+  return mainContent
 }
 
 // chrome.runtime.onMessage.addListener((message) => {
@@ -36,7 +39,9 @@ chrome.runtime.onMessage.addListener((message) => {
     console.log("Received getOrAddDocument result in content script:", result)
 
     if (result.isSuccess) {
-      console.log(`Document saved: ${result.data.id}, isSavedBefore: ${result.data.isSavedBefore}`)
+      console.log(
+        `Document saved: ${result.data.id}, isSavedBefore: ${result.data.isSavedBefore}`
+      )
 
       if (!document.getElementById("rehi-toolbar")) {
         const toolbar = document.createElement("div")
@@ -58,7 +63,7 @@ chrome.runtime.onMessage.addListener((message) => {
           zIndex: "9999",
           fontFamily: "Arial, sans-serif",
           fontSize: "14px",
-          boxShadow: "0 2px 5px rgba(0,0,0,0.3)",
+          boxShadow: "0 2px 5px rgba(0,0,0,0.3)"
         })
 
         const closeBtn = document.createElement("span")
