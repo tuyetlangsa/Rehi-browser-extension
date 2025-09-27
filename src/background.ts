@@ -57,7 +57,7 @@ chrome.commands.onCommand.addListener(async (command) => {
   }
 })
 
-chrome.runtime.onMessage.addListener((message, sender) => {
+chrome.runtime.onMessage.addListener(async (message, sender) => {
   if (message.type === "rawHtml") {
     console.log("Raw HTML received in background:", message.rawHtml)
 
@@ -67,11 +67,12 @@ chrome.runtime.onMessage.addListener((message, sender) => {
       rawHtml: message.rawHtml
     }
 
+    const result = await chrome.storage.local.get(["jwt"])
+    const token = result.jwt
     ;(async () => {
       try {
-        const result = await payload
+        const result = await getOrAddDocument(payload, token)
         console.log("API result:", result)
-
         if (sender.tab?.id) {
           chrome.tabs.sendMessage(sender.tab.id, {
             type: "getOrAddDocumentResult",
