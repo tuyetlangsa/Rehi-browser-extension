@@ -1,20 +1,15 @@
+import dayjs from "dayjs"
+import { parseHTML } from "linkedom"
 import { v4 as uuidv4 } from "uuid"
 
 import { getOrAddDocument } from "~rehi-apis"
 import type { GetOrAddDocumentRequest } from "~types/article"
 
+dayjs().format()
+
+const DEBUG_MODE = process.env.DEBUG === "true" || false
+
 export {}
-
-// chrome.commands.onCommand.addListener((command) => {
-//   if (command === "get-raw-html") {
-//     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-//       const tabId = tabs[0]?.id
-//       if (!tabId) return
-
-//       chrome.tabs.sendMessage(tabId, { type: "get-raw-html" })
-//     })
-//   }
-// })
 
 const scriptsAlreadyLoaded = async (tabId: number) => {
   try {
@@ -59,12 +54,12 @@ chrome.commands.onCommand.addListener(async (command) => {
 
 chrome.runtime.onMessage.addListener(async (message, sender) => {
   if (message.type === "rawHtml") {
-    console.log("Raw HTML received in background:", message.rawHtml)
-
     const payload: GetOrAddDocumentRequest = {
       id: uuidv4(),
       url: message.url,
-      rawHtml: message.rawHtml
+      rawHtml: message.rawHtml,
+      title: message.title,
+      createAt: dayjs().valueOf()
     }
 
     const result = await chrome.storage.local.get(["jwt"])
@@ -93,7 +88,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       console.log({ jwt })
       sendResponse({ jwt })
     })
-
     return true
   }
 })

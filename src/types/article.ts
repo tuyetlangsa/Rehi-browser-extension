@@ -2,6 +2,8 @@ export interface GetOrAddDocumentRequest {
   id: string
   url: string
   rawHtml: string
+  title: string
+  createAt: number
 }
 
 export interface GetOrAddDocumentResponse {
@@ -9,5 +11,3 @@ export interface GetOrAddDocumentResponse {
   url: string
   isSavedBefore: boolean
 }
-
-
