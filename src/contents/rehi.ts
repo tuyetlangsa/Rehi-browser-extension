@@ -4,10 +4,19 @@ chrome.runtime.onMessage.addListener((request, sender) => {
   switch (request.type) {
     case "get-raw-html":
       collectPageContent().then((rawHtml) => {
+        const ogTitle = document
+          .querySelector('meta[property="og:title"]')
+          ?.getAttribute("content")
+        const pageTitle = document.title
+        const h1Title = document.querySelector("h1")?.textContent?.trim()
+
+        // Ưu tiên: OG title > document.title > h1
+        const title = ogTitle || pageTitle || h1Title || "Untitled"
         chrome.runtime.sendMessage({
           type: "rawHtml",
           rawHtml: rawHtml,
-          url: window.location.href
+          url: window.location.href,
+          title: title.trim()
         })
       })
       return true

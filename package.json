@@ -10,8 +10,13 @@
     "package": "plasmo package"
   },
   "dependencies": {
+    "@mozilla/readability": "^0.6.0",
     "axios": "^1.12.2",
+    "dayjs": "^1.11.18",
+    "html-entities": "^2.6.0",
+    "linkedom": "^0.18.12",
     "math-intrinsics": "1.1.0",
+    "parse-srcset": "^1.0.2",
     "plasmo": "0.90.5",
     "react": "18.2.0",
     "react-dom": "18.2.0",
