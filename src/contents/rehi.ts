@@ -2,12 +2,30 @@ import dayjs from "dayjs"
 import type { PlasmoCSConfig } from "plasmo"
 import { v4 as uuidv4 } from "uuid"
 
-import type { SelectionData } from "~types/highlight"
+import type { HighlightResponse } from "~types/article"
+import type { HighlightData, SelectionData } from "~types/highlight"
+import {
+  addHighlightClickHandlers,
+  applyDistributedHighlight,
+  applyHighlights,
+  clearAppliedHighlights,
+  createRangeFromMatchPosition,
+  findMatchPosition,
+  removeHighlightClickHandlers
+} from "~utils/highlight-application"
 import {
   getElementPath,
   getSelectionHTML,
   htmlToMarkdown
 } from "~utils/highlight-utils"
+
+// Extend window interface to include lastSelectionData
+declare global {
+  interface Window {
+    lastSelectionData: SelectionData | null
+    lastHighlightId: string | null
+  }
+}
 
 // Configure content script to exclude localhost:3000 (Rehi web app)
 export const config: PlasmoCSConfig = {
@@ -34,7 +52,6 @@ if (
     window.location.hostname === "127.0.0.1") &&
   window.location.port === "3000"
 ) {
-  console.log("Extension: Exiting on localhost:3000 to prevent interference")
   // Don't execute any extension code
 } else {
   // Extension code only runs on non-localhost:3000 pages
@@ -44,26 +61,15 @@ if (
   let isHighlightingActive = false
   let currentSelection: SelectionData | null = null
   let selectionMenu: HTMLElement | null = null
+  let currentHighlights: HighlightData[] = []
 
   // Highlight colors
   const HIGHLIGHT_COLORS = [
     {
       name: "Yellow",
-      value: "rgba(251, 191, 36, 0.2)",
+      value: "rgba(255, 235, 59, 0.6)",
       bgClass: "bg-yellow-400"
-    },
-    {
-      name: "Green",
-      value: "rgba(16, 185, 129, 0.2)",
-      bgClass: "bg-emerald-500"
-    },
-    { name: "Blue", value: "rgba(59, 130, 246, 0.2)", bgClass: "bg-blue-500" },
-    {
-      name: "Purple",
-      value: "rgba(139, 92, 246, 0.2)",
-      bgClass: "bg-violet-500"
-    },
-    { name: "Pink", value: "rgba(236, 72, 153, 0.2)", bgClass: "bg-pink-500" }
+    }
   ]
 
   chrome.runtime.onMessage.addListener((request, sender) => {
@@ -91,25 +97,42 @@ if (
 
   const collectPageContent = async (): Promise<string> => {
     const mainContent = document.documentElement.outerHTML
-    console.log(mainContent)
     return mainContent
   }
 
   chrome.runtime.onMessage.addListener((message) => {
     if (message.type === "getOrAddDocumentResult") {
       const result = message.result
-      console.log("Received getOrAddDocument result in content script:", result)
 
       if (result.isSuccess) {
-        console.log(
-          `Document saved: ${result.data.id}, isSavedBefore: ${result.data.isSavedBefore}`
-        )
-
         // Store article ID and activate highlighting
         currentArticleId = result.data.id
         isHighlightingActive = true
 
-        console.log("Highlighting activated for article:", currentArticleId)
+        // Convert API highlights to HighlightData format and apply them
+        if (result.data.highlights && result.data.highlights.length > 0) {
+          currentHighlights = result.data.highlights.map(
+            (h: HighlightResponse) => ({
+              id: h.id,
+              articleId: h.articleId,
+              location: h.location,
+              text: h.plainText,
+              html: h.html,
+              markdown: h.markdown,
+              color: h.color,
+              createdAt: h.createAt,
+              updatedAt: h.updateAt,
+              createBy: "rehi-web" as const,
+              isDeleted: false
+            })
+          )
+
+          // Apply highlights to the document body
+          applyHighlights(document.body, currentHighlights)
+
+          // Add click handlers for highlight management
+          addHighlightClickHandlers(document.body, handleDeleteHighlight)
+        }
 
         if (!document.getElementById("rehi-toolbar")) {
           const toolbar = document.createElement("div")
@@ -148,7 +171,7 @@ if (
           }, 5000)
         }
       } else {
-        console.warn("Failed to save document")
+        // Failed to save document
       }
     }
   })
@@ -166,10 +189,6 @@ if (
 
     // Create location string in format: "<startPath>:<startOffset>,<endPath>:<endOffset>"
     const location = `${startStringPath}:${range.startOffset},${endStringPath}:${range.endOffset}`
-
-    console.log("Generated location:", location)
-    console.log("Start path:", startStringPath, "offset:", range.startOffset)
-    console.log("End path:", endStringPath, "offset:", range.endOffset)
 
     const text = selection.toString()
     const html = getSelectionHTML(range)
@@ -202,13 +221,6 @@ if (
   }
 
   function createSelectionMenu(rect: DOMRect, isReverse: boolean): HTMLElement {
-    console.log(
-      "Creating selection menu with rect:",
-      rect,
-      "isReverse:",
-      isReverse
-    )
-
     const menu = document.createElement("div")
     menu.id = "rehi-selection-menu"
 
@@ -217,8 +229,6 @@ if (
     const left =
       (isReverse ? rect.left - offset : rect.right + offset) + window.scrollX
     const top = rect.top + window.scrollY - vertical
-
-    console.log("Menu position - left:", left, "top:", top)
 
     Object.assign(menu.style, {
       position: "absolute",
@@ -254,7 +264,6 @@ if (
 
       const defaultColor = HIGHLIGHT_COLORS[0].value
 
-      console.log("Highlight button clicked with color:", defaultColor)
       handleSaveHighlight(defaultColor)
     })
 
@@ -270,22 +279,15 @@ if (
       e.stopPropagation()
     })
 
-    console.log("Menu created successfully:", menu)
     return menu
   }
 
   function handleSaveHighlight(color: string) {
-    console.log("handleSaveHighlight called with color:", color)
-    console.log("currentSelection:", currentSelection)
-    console.log("currentArticleId:", currentArticleId)
-
-    if (!currentSelection || !currentArticleId) {
-      console.log("Missing selection or article ID")
-      return
-    }
-
     const id = uuidv4()
     const now = dayjs().valueOf()
+
+    // Store selection data before clearing it
+    const selectionData = { ...currentSelection }
 
     const request = {
       id,
@@ -299,8 +301,6 @@ if (
       createBy: "rehi-browser-extension" as const
     }
 
-    console.log("Sending highlight request:", request)
-
     // Send to background script
     chrome.runtime.sendMessage({
       type: "createHighlight",
@@ -308,6 +308,35 @@ if (
     })
 
     clearSelection()
+
+    // Store the selection data and ID globally so createHighlightResult can access it
+    window.lastSelectionData = selectionData
+    window.lastHighlightId = id
+  }
+
+  function handleDeleteHighlight(highlightId: string) {
+    // Send delete request to background script with current timestamp
+    chrome.runtime.sendMessage({
+      type: "deleteHighlight",
+      highlightId: highlightId,
+      updateAt: dayjs().valueOf()
+    })
+
+    // Remove from current highlights collection immediately (optimistic update)
+    currentHighlights = currentHighlights.filter((h) => h.id !== highlightId)
+
+    // Remove visual highlights from DOM immediately
+    const highlightElements = document.querySelectorAll(
+      `article-highlight[data-highlight-id="${highlightId}"]`
+    )
+
+    highlightElements.forEach((element) => {
+      const parent = element.parentNode as Node & ParentNode
+      while (element.firstChild) {
+        parent.insertBefore(element.firstChild, element)
+      }
+      parent.removeChild(element)
+    })
   }
 
   function clearSelection() {
@@ -322,17 +351,11 @@ if (
   function handleMouseUp() {
     if (!isHighlightingActive) return
 
-    console.log("Mouse up detected, highlighting active:", isHighlightingActive)
-
     // Add a longer delay to ensure selection is fully established and user has finished selecting
     setTimeout(() => {
       const sel = document.getSelection()
-      console.log("Selection after mouseup:", sel)
-      console.log("Selection collapsed:", sel?.isCollapsed)
-      console.log("Selection range count:", sel?.rangeCount)
 
       if (!sel || sel.isCollapsed || sel.rangeCount <= 0) {
-        console.log("No valid selection found")
         // Only clear if there's an existing menu
         if (selectionMenu) {
           clearSelection()
@@ -342,7 +365,6 @@ if (
 
       // Check if selection is within body tag
       if (!isSelectionInContainer(sel, document.body)) {
-        console.log("Selection not within body")
         // Only clear if there's an existing menu
         if (selectionMenu) {
           clearSelection()
@@ -352,7 +374,6 @@ if (
 
       const selectionData = extractSelectionData(sel)
       if (!selectionData) {
-        console.log("Failed to extract selection data")
         // Only clear if there's an existing menu
         if (selectionMenu) {
           clearSelection()
@@ -360,7 +381,6 @@ if (
         return
       }
 
-      console.log("Valid selection found:", selectionData)
       currentSelection = selectionData
 
       const range = sel.getRangeAt(0)
@@ -368,8 +388,6 @@ if (
       const isReverse =
         range.startContainer === sel.focusNode &&
         range.endOffset === sel.anchorOffset
-
-      console.log("Creating selection menu at:", rect)
 
       // Remove existing menu
       if (selectionMenu) {
@@ -379,7 +397,6 @@ if (
       // Create new menu
       selectionMenu = createSelectionMenu(rect, isReverse)
       document.body.appendChild(selectionMenu)
-      console.log("Selection menu created and added to DOM")
     }, 100) // Increased delay to ensure selection is complete
   }
 
@@ -387,18 +404,81 @@ if (
   chrome.runtime.onMessage.addListener((message) => {
     if (message.type === "createHighlightResult") {
       const result = message.result
-      console.log("Received createHighlight result:", result)
 
       if (result.isSuccess) {
-        console.log("Highlight created successfully")
+        // Add the new highlight to our collection and apply it visually
+        if (
+          window.lastSelectionData &&
+          currentArticleId &&
+          window.lastHighlightId
+        ) {
+          const newHighlight: HighlightData = {
+            id: window.lastHighlightId, // Use the ID we sent to the server
+            articleId: currentArticleId,
+            location: window.lastSelectionData.location,
+            text: window.lastSelectionData.text,
+            html: window.lastSelectionData.html,
+            markdown: window.lastSelectionData.markdown,
+            color: result.data?.color || "rgba(255, 235, 59, 0.6)",
+            createdAt: dayjs().valueOf(),
+            createBy: "rehi-browser-extension",
+            isDeleted: false
+          }
+
+          // Add to collection
+          currentHighlights.push(newHighlight)
+
+          // Apply the highlight visually
+          const match = findMatchPosition(document.body, newHighlight.text)
+          if (match) {
+            const range = createRangeFromMatchPosition(document.body, match)
+            if (range) {
+              applyDistributedHighlight(
+                range,
+                newHighlight.color,
+                newHighlight.id
+              )
+
+              // Re-add click handlers to include the new highlight
+              addHighlightClickHandlers(document.body, handleDeleteHighlight)
+            } else {
+              // Failed to create range from match position
+            }
+          } else {
+            // Failed to find match position for text
+          }
+
+          // Clear the stored data
+          window.lastSelectionData = null
+          window.lastHighlightId = null
+        }
+
         // Show success notification
         showNotification("✅ Highlight saved successfully!", "success")
       } else {
-        console.warn("Failed to create highlight:", result.message)
+        // Failed to create highlight
         showNotification(
           "❌ Failed to save highlight: " + result.message,
           "error"
         )
+      }
+    }
+  })
+
+  // Handle highlight deletion result
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message.type === "deleteHighlightResult") {
+      const result = message.result
+
+      if (result.isSuccess) {
+        showNotification("✅ Highlight deleted successfully!", "success")
+      } else {
+        // Failed to delete highlight
+        showNotification(
+          "❌ Failed to delete highlight: " + result.message,
+          "error"
+        )
+        // TODO: Re-add the highlight to the collection if deletion failed
       }
     }
   })

@@ -39,3 +39,20 @@ export async function createHighlight(
   )
   return response.data
 }
+
+export async function deleteHighlight(
+  highlightId: string,
+  updateAt: number,
+  token: string
+): Promise<BaseResponse<any>> {
+  const response = await axiosClient.delete<BaseResponse>(
+    `/highlights/${highlightId}/${updateAt}`,
+    {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      }
+    }
+  )
+  return response.data
+}

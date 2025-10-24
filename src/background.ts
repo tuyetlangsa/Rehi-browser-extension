@@ -2,7 +2,7 @@ import dayjs from "dayjs"
 import { parseHTML } from "linkedom"
 import { v4 as uuidv4 } from "uuid"
 
-import { createHighlight, getOrAddDocument } from "~rehi-apis"
+import { createHighlight, deleteHighlight, getOrAddDocument } from "~rehi-apis"
 import type { GetOrAddDocumentRequest } from "~types/article"
 import type { CreateHighlightRequest } from "~types/highlight"
 
@@ -17,7 +17,6 @@ const scriptsAlreadyLoaded = async (tabId: number) => {
     const pingCheck = await chrome.tabs.sendMessage(tabId, {
       message: "ping"
     })
-    console.log("pingCheck: ", pingCheck)
     return true
   } catch {
     return false
@@ -31,7 +30,6 @@ chrome.commands.onCommand.addListener(async (command) => {
       currentWindow: true
     })
     if (!activeTab?.id) {
-      console.log("No active tab found")
       return
     }
     const tabId = activeTab.id
@@ -45,7 +43,7 @@ chrome.commands.onCommand.addListener(async (command) => {
           })
         }
       } catch (err) {
-        console.log("[Rehi] error injecting content script: ", err)
+        // Error injecting content script
       }
 
       chrome.tabs.sendMessage(tabId, { type: "get-raw-html" })
@@ -68,7 +66,6 @@ chrome.runtime.onMessage.addListener(async (message, sender) => {
     ;(async () => {
       try {
         const result = await getOrAddDocument(payload, token)
-        console.log("API result:", result)
         if (sender.tab?.id) {
           chrome.tabs.sendMessage(sender.tab.id, {
             type: "getOrAddDocumentResult",
@@ -76,7 +73,7 @@ chrome.runtime.onMessage.addListener(async (message, sender) => {
           })
         }
       } catch (err) {
-        console.error("API error:", err)
+        // API error
       }
     })()
   }
@@ -86,7 +83,6 @@ chrome.runtime.onMessage.addListener(async (message, sender) => {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === "getJwt") {
     chrome.storage.local.get(["jwt"], ({ jwt }) => {
-      console.log({ jwt })
       sendResponse({ jwt })
     })
     return true
@@ -100,7 +96,6 @@ chrome.runtime.onMessage.addListener(async (message, sender) => {
       const result = await chrome.storage.local.get(["jwt"])
       const token = result.jwt
       if (!token) {
-        console.error("No JWT token found")
         if (sender.tab?.id) {
           chrome.tabs.sendMessage(sender.tab.id, {
             type: "createHighlightResult",
@@ -113,9 +108,7 @@ chrome.runtime.onMessage.addListener(async (message, sender) => {
         return
       }
 
-      console.log("Creating highlight with request:", request)
       const apiResult = await createHighlight(request, token)
-      console.log("Highlight API result:", apiResult)
 
       if (sender.tab?.id) {
         chrome.tabs.sendMessage(sender.tab.id, {
@@ -124,10 +117,50 @@ chrome.runtime.onMessage.addListener(async (message, sender) => {
         })
       }
     } catch (err) {
-      console.error("Error creating highlight:", err)
       if (sender.tab?.id) {
         chrome.tabs.sendMessage(sender.tab.id, {
           type: "createHighlightResult",
+          result: {
+            isSuccess: false,
+            message: err instanceof Error ? err.message : "Unknown error"
+          }
+        })
+      }
+    }
+  }
+})
+
+chrome.runtime.onMessage.addListener(async (message, sender) => {
+  if (message.type === "deleteHighlight") {
+    const { highlightId, updateAt } = message
+    try {
+      const result = await chrome.storage.local.get(["jwt"])
+      const token = result.jwt
+      if (!token) {
+        if (sender.tab?.id) {
+          chrome.tabs.sendMessage(sender.tab.id, {
+            type: "deleteHighlightResult",
+            result: {
+              isSuccess: false,
+              message: "No authentication token found"
+            }
+          })
+        }
+        return
+      }
+
+      const apiResult = await deleteHighlight(highlightId, updateAt, token)
+
+      if (sender.tab?.id) {
+        chrome.tabs.sendMessage(sender.tab.id, {
+          type: "deleteHighlightResult",
+          result: apiResult
+        })
+      }
+    } catch (err) {
+      if (sender.tab?.id) {
+        chrome.tabs.sendMessage(sender.tab.id, {
+          type: "deleteHighlightResult",
           result: {
             isSuccess: false,
             message: err instanceof Error ? err.message : "Unknown error"

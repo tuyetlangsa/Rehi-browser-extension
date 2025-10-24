@@ -20,3 +20,30 @@ export interface SelectionData {
   startStringPath: string
   endStringPath: string
 }
+
+// Additional types for highlight application
+export interface TextMapEntry {
+  node: Text
+  start: number
+  end: number
+}
+
+export interface MatchPosition {
+  map: TextMapEntry[]
+  startOffset: number
+  endOffset: number
+}
+
+export interface HighlightData {
+  id: string
+  articleId: string
+  location: string
+  text: string
+  html?: string
+  markdown?: string
+  color?: string
+  createdAt: number
+  updatedAt?: number
+  createBy: "rehi-web" | "rehi-browser-extension"
+  isDeleted: boolean
+}
