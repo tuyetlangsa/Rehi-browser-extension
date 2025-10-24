@@ -2,8 +2,9 @@ import dayjs from "dayjs"
 import { parseHTML } from "linkedom"
 import { v4 as uuidv4 } from "uuid"
 
-import { getOrAddDocument } from "~rehi-apis"
+import { createHighlight, getOrAddDocument } from "~rehi-apis"
 import type { GetOrAddDocumentRequest } from "~types/article"
+import type { CreateHighlightRequest } from "~types/highlight"
 
 dayjs().format()
 
@@ -89,5 +90,50 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       sendResponse({ jwt })
     })
     return true
+  }
+})
+
+chrome.runtime.onMessage.addListener(async (message, sender) => {
+  if (message.type === "createHighlight") {
+    const request: CreateHighlightRequest = message.request
+    try {
+      const result = await chrome.storage.local.get(["jwt"])
+      const token = result.jwt
+      if (!token) {
+        console.error("No JWT token found")
+        if (sender.tab?.id) {
+          chrome.tabs.sendMessage(sender.tab.id, {
+            type: "createHighlightResult",
+            result: {
+              isSuccess: false,
+              message: "No authentication token found"
+            }
+          })
+        }
+        return
+      }
+
+      console.log("Creating highlight with request:", request)
+      const apiResult = await createHighlight(request, token)
+      console.log("Highlight API result:", apiResult)
+
+      if (sender.tab?.id) {
+        chrome.tabs.sendMessage(sender.tab.id, {
+          type: "createHighlightResult",
+          result: apiResult
+        })
+      }
+    } catch (err) {
+      console.error("Error creating highlight:", err)
+      if (sender.tab?.id) {
+        chrome.tabs.sendMessage(sender.tab.id, {
+          type: "createHighlightResult",
+          result: {
+            isSuccess: false,
+            message: err instanceof Error ? err.message : "Unknown error"
+          }
+        })
+      }
+    }
   }
 })
