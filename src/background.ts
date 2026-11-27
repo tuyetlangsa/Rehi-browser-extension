@@ -2,9 +2,9 @@ import dayjs from "dayjs"
 import { parseHTML } from "linkedom"
 import { v4 as uuidv4 } from "uuid"
 
-import { isSignedIn, logout } from "~auth/session"
+import { isSignedIn, logout, setSession } from "~auth/session"
 import { SignedOutError } from "~axios-client"
-import { LOGIN_URL } from "~config"
+import { LOGIN_URL, WEB_ORIGIN } from "~config"
 import { createHighlight, deleteHighlight, getOrAddDocument } from "~rehi-apis"
 import type { GetOrAddDocumentRequest } from "~types/article"
 import type { CreateHighlightRequest } from "~types/highlight"
@@ -94,6 +94,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
   if (request.type === "logout") {
     logout().then(() => sendResponse({ signedIn: false }))
+    return true
+  }
+  if (request.type === "setSession") {
+    const fromWebApp =
+      sender.id === chrome.runtime.id && sender.origin === WEB_ORIGIN
+    if (!fromWebApp || typeof request.refreshToken !== "string") return
+    setSession(request.refreshToken).then(() =>
+      sendResponse({ signedIn: true })
+    )
     return true
   }
 })
