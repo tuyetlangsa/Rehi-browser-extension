@@ -7,16 +7,14 @@ import type {
 import type { CreateHighlightRequest } from "./types/highlight"
 
 export async function getOrAddDocument(
-  request: GetOrAddDocumentRequest,
-  token: string
+  request: GetOrAddDocumentRequest
 ): Promise<BaseResponse<GetOrAddDocumentResponse>> {
   const response = await axiosClient.post<BaseResponse>(
     "/articles/get-or-add",
     request,
     {
       headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
+        "Content-Type": "application/json"
       }
     }
   )
@@ -24,16 +22,14 @@ export async function getOrAddDocument(
 }
 
 export async function createHighlight(
-  request: CreateHighlightRequest,
-  token: string
+  request: CreateHighlightRequest
 ): Promise<BaseResponse<any>> {
   const response = await axiosClient.post<BaseResponse>(
     "/highlights",
     request,
     {
       headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
+        "Content-Type": "application/json"
       }
     }
   )
@@ -42,15 +38,13 @@ export async function createHighlight(
 
 export async function deleteHighlight(
   highlightId: string,
-  updateAt: number,
-  token: string
+  updateAt: number
 ): Promise<BaseResponse<any>> {
   const response = await axiosClient.delete<BaseResponse>(
     `/highlights/${highlightId}/${updateAt}`,
     {
       headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
+        "Content-Type": "application/json"
       }
     }
   )

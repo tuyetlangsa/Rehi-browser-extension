@@ -1,26 +1,42 @@
 import { useEffect, useState } from "react"
 
+import { LOGIN_URL } from "~config"
+
+type Status = "loading" | "signedIn" | "signedOut"
+
 export default function RehiPopup() {
-  const [jwt, setJwt] = useState<string | null>(null)
+  const [status, setStatus] = useState<Status>("loading")
+
+  const applyResponse = (response?: { signedIn: boolean }) =>
+    setStatus(response?.signedIn ? "signedIn" : "signedOut")
 
   useEffect(() => {
-    chrome.runtime.sendMessage({ type: "getJwt" }, (response) => {
-      setJwt(response?.jwt || null)
-    })
+    chrome.runtime.sendMessage({ type: "getSession" }, applyResponse)
   }, [])
 
   return (
-    <div>
-      <h1>{jwt} My Extension</h1>
-      <p id="status">{jwt ? "JWT token found!" : "JWT token not found."}</p>
-      {!jwt && (
-        <button
-          id="login"
-          onClick={() => {
-            chrome.tabs.create({ url: "http://localhost:3000/auth/login" })
-          }}>
-          Log in
-        </button>
+    <div
+      style={{ padding: 16, minWidth: 220, fontFamily: "Arial, sans-serif" }}>
+      <h1 style={{ fontSize: 16, margin: "0 0 8px" }}>Rehi</h1>
+      {status === "loading" && <p>Checking session...</p>}
+      {status === "signedIn" && (
+        <>
+          <p>Signed in.</p>
+          <button
+            onClick={() =>
+              chrome.runtime.sendMessage({ type: "logout" }, applyResponse)
+            }>
+            Log out
+          </button>
+        </>
+      )}
+      {status === "signedOut" && (
+        <>
+          <p>Not signed in.</p>
+          <button onClick={() => chrome.tabs.create({ url: LOGIN_URL })}>
+            Log in
+          </button>
+        </>
       )}
     </div>
   )

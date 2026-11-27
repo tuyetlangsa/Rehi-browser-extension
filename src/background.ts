@@ -2,6 +2,9 @@ import dayjs from "dayjs"
 import { parseHTML } from "linkedom"
 import { v4 as uuidv4 } from "uuid"
 
+import { isSignedIn, logout } from "~auth/session"
+import { SignedOutError } from "~axios-client"
+import { LOGIN_URL } from "~config"
 import { createHighlight, deleteHighlight, getOrAddDocument } from "~rehi-apis"
 import type { GetOrAddDocumentRequest } from "~types/article"
 import type { CreateHighlightRequest } from "~types/highlight"
@@ -11,6 +14,10 @@ dayjs().format()
 const DEBUG_MODE = process.env.DEBUG === "true" || false
 
 export {}
+
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.storage.local.remove("jwt")
+})
 
 const scriptsAlreadyLoaded = async (tabId: number) => {
   try {
@@ -61,11 +68,9 @@ chrome.runtime.onMessage.addListener(async (message, sender) => {
       createAt: dayjs().valueOf()
     }
 
-    const result = await chrome.storage.local.get(["jwt"])
-    const token = result.jwt
     ;(async () => {
       try {
-        const result = await getOrAddDocument(payload, token)
+        const result = await getOrAddDocument(payload)
         if (sender.tab?.id) {
           chrome.tabs.sendMessage(sender.tab.id, {
             type: "getOrAddDocumentResult",
@@ -73,7 +78,9 @@ chrome.runtime.onMessage.addListener(async (message, sender) => {
           })
         }
       } catch (err) {
-        // API error
+        if (err instanceof SignedOutError) {
+          chrome.tabs.create({ url: LOGIN_URL })
+        }
       }
     })()
   }
@@ -81,10 +88,12 @@ chrome.runtime.onMessage.addListener(async (message, sender) => {
 })
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.type === "getJwt") {
-    chrome.storage.local.get(["jwt"], ({ jwt }) => {
-      sendResponse({ jwt })
-    })
+  if (request.type === "getSession") {
+    isSignedIn().then((signedIn) => sendResponse({ signedIn }))
+    return true
+  }
+  if (request.type === "logout") {
+    logout().then(() => sendResponse({ signedIn: false }))
     return true
   }
 })
@@ -93,22 +102,7 @@ chrome.runtime.onMessage.addListener(async (message, sender) => {
   if (message.type === "createHighlight") {
     const request: CreateHighlightRequest = message.request
     try {
-      const result = await chrome.storage.local.get(["jwt"])
-      const token = result.jwt
-      if (!token) {
-        if (sender.tab?.id) {
-          chrome.tabs.sendMessage(sender.tab.id, {
-            type: "createHighlightResult",
-            result: {
-              isSuccess: false,
-              message: "No authentication token found"
-            }
-          })
-        }
-        return
-      }
-
-      const apiResult = await createHighlight(request, token)
+      const apiResult = await createHighlight(request)
 
       if (sender.tab?.id) {
         chrome.tabs.sendMessage(sender.tab.id, {
@@ -134,22 +128,7 @@ chrome.runtime.onMessage.addListener(async (message, sender) => {
   if (message.type === "deleteHighlight") {
     const { highlightId, updateAt } = message
     try {
-      const result = await chrome.storage.local.get(["jwt"])
-      const token = result.jwt
-      if (!token) {
-        if (sender.tab?.id) {
-          chrome.tabs.sendMessage(sender.tab.id, {
-            type: "deleteHighlightResult",
-            result: {
-              isSuccess: false,
-              message: "No authentication token found"
-            }
-          })
-        }
-        return
-      }
-
-      const apiResult = await deleteHighlight(highlightId, updateAt, token)
+      const apiResult = await deleteHighlight(highlightId, updateAt)
 
       if (sender.tab?.id) {
         chrome.tabs.sendMessage(sender.tab.id, {
