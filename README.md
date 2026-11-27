@@ -16,6 +16,15 @@ You can start editing the popup by modifying `popup.tsx`. It should auto-update 
 
 For further guidance, [visit our Documentation](https://docs.plasmo.com/)
 
+## Configuration
+
+Copy `.env.example` to `.env` (dev) or `.env.production` (store build) and set:
+
+- `PLASMO_PUBLIC_API_URL`: Rehi API base URL. Default `http://localhost:5204`.
+- `PLASMO_PUBLIC_WEB_URL`: Rehi web app URL. Default `http://localhost:3000`. The extension accepts a session only from this exact origin.
+
+The web app hands the extension its session through `src/contents/rehi-session.ts`. Plasmo reads that script's `matches` at build time, so it cannot come from the env. Before a store build, add the production web origin (for example `https://<host>/*`) to `matches` there, or the extension never receives a session in production.
+
 ## Making production build
 
 Run the following:
